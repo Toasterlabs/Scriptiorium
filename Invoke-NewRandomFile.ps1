@@ -1,6 +1,5 @@
 Function Invoke-NewRandomFile{
 <#
-    <#
         .SYNOPSIS
           Creates a file with random content
         .DESCRIPTION
@@ -21,8 +20,6 @@ Function Invoke-NewRandomFile{
   
         .EXAMPLE
           Invoke-NewRandomFile -filename randomfile.txt -filesize 45MB
-    #>
-
 #>
     Param(
         [Parameter(Mandatory=$True)]

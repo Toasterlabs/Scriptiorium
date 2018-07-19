@@ -25,9 +25,6 @@ Function Invoke-NewPopup {
           Author:         Marc Dekeyser
           Creation Date:  Juli 7th, 2018
           Purpose/Change: Just having some fun
-  
-        .EXAMPLE
-          Invoke-writelog -logfile C:\temp\log.log -Message "Just testing this out"
     #>
 
 Param (

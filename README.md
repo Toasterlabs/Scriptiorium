@@ -14,3 +14,5 @@ Function that creates a balloontip.
 Function creating a pop up message.
 ### Invoke-NewRandomFile
 Function creating a file filled with random content.
+### Invoke-NewRunspace
+Runs code specified in a seperate runspace

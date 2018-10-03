@@ -16,3 +16,5 @@ Function creating a pop up message.
 Function creating a file filled with random content.
 ### Invoke-NewRunspace
 Runs code specified in a seperate runspace
+### Invoke-ExchangeVersionNumbersPull
+This function pulls the latest Exchange version numbers from the Microsoft webpage (https://technet.microsoft.com/en-us/library/hh135098(d=printer,v=exchg.150).aspx) and transforms it in to a PSObject (ProductName, ReleaseDate, VersionNumber)

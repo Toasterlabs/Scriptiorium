@@ -4,8 +4,9 @@ I've decided to rewrite what's necessary, and store it all centrally in this rep
 
 There are 2 different main folders:
  
- - GrandSharedModule
+ * GrandSharedModule
  Simply put, the central location for every function that I worked on/with.
- 
- - Scripts
+ * Scripts
  Scripts I wrote, or reworked...
+ 
+ 

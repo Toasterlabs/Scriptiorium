@@ -16,5 +16,14 @@ function Invoke-ProgressHelper{
 	   [ValidateNotNullOrEmpty()]
 	   [INT]$Steps
    )
-Write-Progress -Id $ID -Activity $Activity -Status $StatusMessage -PercentComplete (($StepNumber / $steps) * 100)
+
+	# Calculating how far along we are
+	$PercentComplete = (($StepNumber / $steps) * 100)
+
+	# Catching the rare instance where percent complete is larger than 100, thus avoiding error messages
+	if($PercentComplete -gt 100){
+		Write-Progress -Id $ID -Activity $Activity -Status $StatusMessage -PercentComplete 100
+	}Else{
+		Write-Progress -Id $ID -Activity $Activity -Status $StatusMessage -PercentComplete $PercentComplete
+	}
 }

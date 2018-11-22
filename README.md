@@ -14,6 +14,8 @@ There are 2 different main folders:
 * [Breaches](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Breaches/readme.md)
 * [Connectivity](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Connectivity/readme.md)
 * [Console and Logging](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Console%20and%20Logging/readme.md)
+* [Exchange Online](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Exchange%20Online/Readme.md)
+* [Exchange On-Premises](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Exchange%20On-Premises/Readme.md)
 
 ## Scripts
 * [Invoke-BuildModule](https://github.com/Toasterlabs/Scriptiorium/tree/master/Scripts/Invoke-BuildModule)

@@ -10,6 +10,9 @@ There are 2 different main folders:
  Scripts I wrote, or reworked...
  
  ## Grand Shared Module
+* [Active Directory](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Active%20Directory/readme.md)
+* [Breaches](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Breaches/readme.md)
+* [Connectivity](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Connectivity/readme.md)
 * [Console and Logging](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Console%20and%20Logging/readme.md)
 
 ## Scripts

@@ -18,6 +18,7 @@ There are 2 different main folders:
 * [Files and folders](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Files%20and%20Folders/readme.md)
 * [General](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/General/readme.md)
 * [Machine Actions](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Machine%20Actions/readme.md)
+* [O365](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/O365/readme.md)
 
 ## Scripts
 * [Invoke-BuildModule](https://github.com/Toasterlabs/Scriptiorium/tree/master/Scripts/Invoke-BuildModule)

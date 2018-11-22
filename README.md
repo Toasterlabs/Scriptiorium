@@ -9,4 +9,7 @@ There are 2 different main folders:
  * Scripts
  Scripts I wrote, or reworked...
  
- 
+ ## Grand Shared Module
+* [Console and Logging](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Console%20and%20Logging/readme.md)
+
+## Scripts

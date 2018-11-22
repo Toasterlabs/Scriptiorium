@@ -16,6 +16,7 @@ There are 2 different main folders:
 * [Exchange On-Premises](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Exchange%20On-Premises/Readme.md)
 * [Credentials](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Credentials/readme.md)
 * [Files and folders](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Files%20and%20Folders/readme.md)
+* [General](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/General/readme.md)
 
 ## Scripts
 * [Invoke-BuildModule](https://github.com/Toasterlabs/Scriptiorium/tree/master/Scripts/Invoke-BuildModule)

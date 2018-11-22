@@ -16,3 +16,7 @@ There are 2 different main folders:
 * [Console and Logging](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Console%20and%20Logging/readme.md)
 
 ## Scripts
+* [Invoke-BuildModule](https://github.com/Toasterlabs/Scriptiorium/tree/master/Scripts/Invoke-BuildModule)
+Builds a PowerShell Module from a bunch of PS1 files
+* [Test-DomainControllerHealth](https://github.com/Toasterlabs/Scriptiorium/tree/master/Scripts/Test-DomainControllerHealth)
+Tests the health of all domain controllers in your Active Directory

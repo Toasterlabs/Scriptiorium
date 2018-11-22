@@ -4,10 +4,8 @@ I've decided to rewrite what's necessary, and store it all centrally in this rep
 
 There are 2 different main folders:
  
- * GrandSharedModule
- Simply put, the central location for every function that I worked on/with.
- * Scripts
- Scripts I wrote, or reworked...
+ * GrandSharedModule: Simply put, the central location for every function that I worked on/with.
+ * Scripts: Scripts I wrote, or reworked...
  
  ## Grand Shared Module
 * [Active Directory](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Active%20Directory/readme.md)

@@ -4,10 +4,8 @@ I've decided to rewrite what's necessary, and store it all centrally in this rep
 
 There are 2 different main folders:
  
- * GrandSharedModule
- Simply put, the central location for every function that I worked on/with.
- * Scripts
- Scripts I wrote, or reworked...
+ * **GrandSharedModule**: Simply put, the central location for every function that I worked on/with.
+ * **Scripts**: Scripts I wrote, or reworked...
  
  ## Grand Shared Module
 * [Active Directory](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Active%20Directory/readme.md)
@@ -16,6 +14,13 @@ There are 2 different main folders:
 * [Console and Logging](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Console%20and%20Logging/readme.md)
 * [Exchange Online](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Exchange%20Online/Readme.md)
 * [Exchange On-Premises](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Exchange%20On-Premises/Readme.md)
+* [Credentials](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Credentials/readme.md)
+* [Files and folders](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Files%20and%20Folders/readme.md)
+* [General](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/General/readme.md)
+* [Machine Actions](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Machine%20Actions/readme.md)
+* [O365](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/O365/readme.md)
+* [Prerequisites](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Prerequisites/readme.md)
+* [Runspaces](https://github.com/Toasterlabs/Scriptiorium/blob/master/GrandSharedModule/Public/Runspaces/Readme.md)
 
 ## Scripts
 * [Invoke-BuildModule](https://github.com/Toasterlabs/Scriptiorium/tree/master/Scripts/Invoke-BuildModule)

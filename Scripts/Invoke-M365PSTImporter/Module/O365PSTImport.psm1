@@ -101,7 +101,7 @@ Function invoke-Logging{
 			}
 			"INFO"     {
 				$Message = (get-date -Format HH:mm:ss) + " - [INFO]: " + $Message 
-				Invoke-ColorOutput $Message -ForegroundColor White
+				Invoke-ColorOutput $Message -ForegroundColor Cyan
 				Try{
 					$Message | Out-File $RunLog -Append -ErrorAction SilentlyContinue
 				}Catch{

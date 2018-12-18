@@ -33,24 +33,19 @@ Param(
 	$Path,
 	[Parameter(Mandatory = $True, HelpMessage = 'Export path for the CSV Mapping', ParameterSetName='UploadPST')]
 	[ValidateNotNullOrEmpty()]
+	[parameter(ParameterSetName = 'ImportPST')]
 	$CSVPath,
 	[Parameter(Mandatory = $false, HelpMessage = 'User we are processing', ParameterSetName='UploadPST')]
 	[Alias("Email")]
 	[Alias("mail")]
 	[Alias("UPN")]
-	[SWITCH]$EmailAddress,
+	$EmailAddress,
 	#endregion
 	#region Import PST
 	[Parameter(Mandatory = $false, HelpMessage = 'Import PST Files', ParameterSetName='ImportPST')]
 	[SWITCH]$ImportPST,
-	[Parameter(Mandatory = $false, HelpMessage = 'Where the PST should be imported', ParameterSetName='ImportPST')]
-	$TargetRootFolder,
-	[Parameter(Mandatory = $false, HelpMessage = 'How many items can be skipped', ParameterSetName='ImportPST')]
-	$BadItemLimit,
 	[Parameter(Mandatory = $false, HelpMessage = 'Name for the import', ParameterSetName='ImportPST')]
 	$BatchName,
-	[Parameter(Mandatory = $false, HelpMessage = 'Folders to exclude', ParameterSetName='ImportPST')]
-	$ExcludeFolders,
 	#endregion
 	[Parameter(Mandatory = $false, HelpMessage = 'Runlog')]
 	$runlog
@@ -173,10 +168,11 @@ If($UploadPST){
 
 	Foreach($PST in $PSTFiles){
 		$CSV = [PSCustomObject]
-		$CSV = "" | Select email,PSTName
+		$CSV = "" | Select email,PSTName, Status
 
 		$CSV.Email = $EmailAddress
 		$CSV.PSTName = $PST.Name
+		$CSV.Status = "Not Started"
 
 		$CSV | Export-Csv -Path "$CSVPath\Mapping.csv" -NoTypeInformation -Append
 	}
@@ -270,8 +266,52 @@ If($ConfigureBlob){
 	Write-Output "Storage Key (AZCopy)`n--------------------`n$($storagekey[0].value)`n`n"
 	Write-Output "SAS URI`n-------`nhttps://$StorageAccountName.blob.core.windows.net/$StorageAccountContainer$token`n"
 }
-
 #endregion
 
 #region Import PSTs
+If($ImportPST){
+
+	# Header
+	Write-Output ""
+	Invoke-Logging -LogLevel INFO -Message "Starting PST Import Process"
+
+	# Importing CSV
+	Invoke-Logging -LogLevel INFO -Message "Importing CSV File"
+	$CSV = Import-Csv $CSVPath
+
+	# Connecting to Exchange Online
+	Invoke-Logging -LogLevel INFO -Message "Connecting to Exchange Online"
+	$UserCredential = Get-Credential
+	$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
+	Import-PSSession $Session -DisableNameChecking
+
+	# Iterating through list of items in CSV and starting upload process
+	Invoke-Logging -LogLevel INFO -Message "Creating PST Import requests"
+	Foreach($i in $CSV){
+
+		If($i.status -eq "Started"){
+			Invoke-Logging -LogLevel ALERT -Message "PST import previously started: $($I.PSTName) for $($i.email)"
+		}Else{
+			# Processing
+			Invoke-Logging -LogLevel INFO -Message "Processing: $($i.email)"
+
+			# Import request
+			Try{
+				New-MailboxImportRequest -Name $batchname -Mailbox $($i.email) -AzureBlobStorageAccountUri $AzureBlobStorageAccountUri/$i.PSTname -AzureSharedAccessSignatureToken $AzureBlobStorageAccountUri
+				($csv |where {$_.PSTName -eq $i.PSTName}).Status = "Started"
+			}Catch{
+				Invoke-Logging -LogLevel ALERT -Message "Unable to start PST import: $($I.PSTName) for $($i.email)"
+			}
+		}
+
+	}
+
+	# Exporting CSV
+	$CSV | Export-Csv $CSVPath -NoTypeInformation -Force
+	
+	# Exiting session with Exchange Online
+	Remove-PSSession $Session
+
+
+}
 #endregion

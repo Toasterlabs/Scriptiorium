@@ -297,7 +297,7 @@ If($ImportPST){
 
 			# Import request
 			Try{
-				New-MailboxImportRequest -Name $batchname -Mailbox $($i.email) -AzureBlobStorageAccountUri $AzureBlobStorageAccountUri/$i.PSTname -AzureSharedAccessSignatureToken $AzureBlobStorageAccountUri
+				New-MailboxImportRequest -Name $batchname -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $AzureBlobStorageAccountUri/$i.PSTname -AzureSharedAccessSignatureToken $AzureBlobStorageAccountUri
 				($csv |where {$_.PSTName -eq $i.PSTName}).Status = "Started"
 			}Catch{
 				Invoke-Logging -LogLevel ALERT -Message "Unable to start PST import: $($I.PSTName) for $($i.email)"

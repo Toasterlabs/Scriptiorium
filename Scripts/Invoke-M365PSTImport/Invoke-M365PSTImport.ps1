@@ -44,8 +44,6 @@ Param(
 	#region Import PST
 	[Parameter(Mandatory = $false, HelpMessage = 'Import PST Files', ParameterSetName='ImportPST')]
 	[SWITCH]$ImportPST,
-	[Parameter(Mandatory = $false, HelpMessage = 'Name for the import', ParameterSetName='ImportPST')]
-	$BatchName,
 	#endregion
 	[Parameter(Mandatory = $false, HelpMessage = 'Runlog')]
 	$runlog
@@ -297,7 +295,7 @@ If($ImportPST){
 
 			# Import request
 			Try{
-				New-MailboxImportRequest -Name $batchname -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $AzureBlobStorageAccountUri/$i.PSTname -AzureSharedAccessSignatureToken $AzureBlobStorageAccountUri
+				New-MailboxImportRequest -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $AzureBlobStorageAccountUri/$i.PSTname -AzureSharedAccessSignatureToken $AzureBlobStorageAccountUri
 				($csv |where {$_.PSTName -eq $i.PSTName}).Status = "Started"
 			}Catch{
 				Invoke-Logging -LogLevel ALERT -Message "Unable to start PST import: $($I.PSTName) for $($i.email)"

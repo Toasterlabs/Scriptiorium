@@ -521,7 +521,7 @@ If(Test-Path $VariableProxy.Module){
 
 							# Import request creation
 							Try{
-								New-MailboxImportRequest -Name $batchname -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $VariableProxy.AccountUri/$i.PSTname -AzureSharedAccessSignatureToken $VariableProxy.SASToken
+								New-MailboxImportRequest -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $VariableProxy.AccountUri/$i.PSTname -AzureSharedAccessSignatureToken $VariableProxy.SASToken
 								($csv |where {$_.PSTName -eq $i.PSTName}).Status = "Started"
 							}Catch{
 								# Reporting

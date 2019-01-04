@@ -3,7 +3,7 @@ Param(
 	$runlog
 )
 
-# Variables
+#region Variables
 	# Checking if Runlog is empty
 	If(!($Runlog)){
 		$Runlog = "\$(Get-Date -uformat %Y%m%d-%H%M)-PSTImporter.log"
@@ -14,24 +14,29 @@ Param(
 	#region Synchronized Collections
 	$Global:SyncHash = [hashtable]::Synchronized(@{})
 	$Global:VariableProxy = [hashtable]::Synchronized(@{})
-
-	$Global:VariableProxy.ScriptDir = $PSScriptRoot
-	$Global:VariableProxy.Module = -join($PSScriptRoot,"\Module\Invoke-M365PSTImport.psm1")
-	$Global:VariableProxy.Runlog = -join($PSScriptRoot,$runlog)
+	
+	# Setting variables
+	$VariableProxy.ScriptDir = $PSScriptRoot
+	$VariableProxy.FormsDir = -join($PSScriptRoot,"\Resources\Forms\")
+	$VariableProxy.IconsDir = -join($PSScriptRoot,"\Resources\Icons\")
+	$VariableProxy.Module = -join($PSScriptRoot,"\Resources\Module\Invoke-M365PSTImport.psm1")
+	$VariableProxy.Runlog = -join($PSScriptRoot,$runlog)
 	$VariableProxy.ResourceGroup = "pstuploads"
 	$VariableProxy.MappingFile = -join($PSScriptRoot,"\Mapping.csv")
 	$VariableProxy.SettingsFile = -join($PSScriptRoot,"\Settings.xml")
+	$VariableProxy.TranscriptsDir = -join($PSScriptRoot,"\Transcripts\")
+	#endregion Synchronized Collections
+#endregion Variables
 
+#region Prerequisites
+	# Importing Module
+	If(Test-Path $VariableProxy.Module){
+		Import-Module $VariableProxy.Module -DisableNameChecking -Force
+	}Else{
+		Write-Warning -Message "Unable to import script module. Now Exiting on the right!"
+		exit
+	}
 
-# Importing Module
-If(Test-Path $VariableProxy.Module){
-	Import-Module $VariableProxy.Module -DisableNameChecking -Force
-}Else{
-	Write-Warning -Message "Unable to import script module. Now Exiting on the right!"
-	exit
-}
-
-#region Header
 	## Clearing Screen
 	cls
 
@@ -39,9 +44,7 @@ If(Test-Path $VariableProxy.Module){
 	Invoke-Logging -LogLevel Title -Message "Microsoft 365 PST Uploader & Importer (Graphical Edition) starting!" -Runlog $VariableProxy.Runlog
 	Write-Output ""
 	Invoke-Logging -LogLevel INFO -Message "RUnlog will be saved in $($VariableProxy.Runlog)"
-#endregion
 
-#region Testing Prerequisites
 	Invoke-Logging -LogLevel INFO -Message "Prerequisite testing starting..." -Runlog $VariableProxy.Runlog
 	
 	## Internet connectivity
@@ -127,57 +130,61 @@ If(Test-Path $VariableProxy.Module){
 		$CSV = "" | Select email,PSTName, Status
 		$CSV | Export-Csv -Path $VariableProxy.MappingFile -NoTypeInformation
 	}
+
+	# Transcripts Dir
+	If(!(Test-path $VariableProxy.TranscriptsDir)){
+		New-Item -ItemType Directory -Path $VariableProxy.TranscriptsDir
+	}
 #endregion
 
-#region Main
-	# setting up
+#region Configuring GUI Runspace
+	
+	# Runspace creation
 	$syncHash.host = $Host
-	$newRunspace =[runspacefactory]::CreateRunspace()
-	$newRunspace.ApartmentState = "STA"
-	$newRunspace.ThreadOptions = "ReuseThread"
-	$newRunspace.Open()
-	# Syncing variables
-	$newRunspace.SessionStateProxy.SetVariable("syncHash",$syncHash)
-	$newRunspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
-	#endregion
+	$GUI_Runspace =[runspacefactory]::CreateRunspace()
+	$GUI_Runspace.ApartmentState = "STA"
+	$GUI_Runspace.ThreadOptions = "ReuseThread"
+	$GUI_Runspace.Open()
 
+	# Passing variables
+	$GUI_Runspace.SessionStateProxy.SetVariable("syncHash",$syncHash)
+	$GUI_Runspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
+	
+#endregion Configuring GUI Runspace
+
+#region Main
 	# Scriptblock to execute in a runspace
 	$psCmd = [PowerShell]::Create().AddScript({
 	
-		#region Background runspace to clean up jobs
-		$jobCleanup.Flag = $True
-		$newRunspace =[runspacefactory]::CreateRunspace()
-		$newRunspace.ApartmentState = "STA"
-		$newRunspace.ThreadOptions = "ReuseThread"
-		$newRunspace.Open()
-		$newRunspace.SessionStateProxy.SetVariable("synchash",$synchash)
-		$newRunspace.SessionStateProxy.SetVariable("jobCleanup",$jobCleanup)
-		$newRunspace.SessionStateProxy.SetVariable("jobs",$jobs)		
-		#endregion
+		# Importing Module (Force to overwrite functions which may have already been imported, disabling name checking)
+		Import-Module $VariableProxy.module -Force -DisableNameChecking
 
-		# Import Module
-
-		#region GUI Prep
-			# Load Required Assemblies
-			Add-Type –assemblyName PresentationFramework
-
-			# Loading XAML code	
-			## Reading XAML file	
-			[xml]$xaml = Get-Content -Path "$($VariableProxy.ScriptDir)\Forms\Main.xaml"
-			## Loading in to XML Node reader
-			$reader = (New-Object System.Xml.XmlNodeReader $xaml)
-			## Loading XML Node reader in to $SyncHash window property to launch later
-			$SyncHash.Window = [Windows.Markup.XamlReader]::Load($reader)
-		#endregion
+		# Load Required Assemblies
+		Add-Type –assemblyName PresentationFramework # Required to show the GUI
+		Add-Type -AssemblyName System.Windows.Forms # Required to use the folder browser dialog
+		
+		# Loading XAML code	
+		[xml]$xaml = Get-Content -Path "$($VariableProxy.FormsDir)\Main.xaml"
+		
+		# Loading in to XML Node reader
+		$reader = (New-Object System.Xml.XmlNodeReader $xaml)
+		
+		# Loading XML Node reader in to $SyncHash window property to launch later
+		$SyncHash.Window = [Windows.Markup.XamlReader]::Load($reader)
 
 		#region Connecting Controls
+			# Main
+			$synchash.BTN_Close = $SyncHash.Window.FindName("BTN_Close")
+			$synchash.IMG_Close = $SyncHash.Window.FindName("IMG_Close")	
+			$synchash.TitleBar = $SyncHash.Window.FindName("TitleBar")
+			$synchash.OutputWindow = $SyncHash.Window.FindName("OutputWindow")
+
 			# Configure Blob
 			$synchash.TXT_StorageAccountName = $SyncHash.Window.FindName("TXT_StorageAccountName")
 			$synchash.TXT_StorageAccountContainer = $SyncHash.Window.FindName("txt_StorageAccountContainer")
 			$synchash.DatePicker_TokenExpireTime = $SyncHash.Window.FindName("DatePicker_TokenExpireTime")
 			$synchash.DD_StorageLocation = $SyncHash.Window.FindName("DD_StorageLocation")
 			$synchash.BTN_Create = $SyncHash.Window.FindName("BTN_Create")
-			$synchash.OutputWindow = $SyncHash.Window.FindName("OutputWindow")
 
 			# Upload PST
 			$synchash.TXT_AccountURI = $SyncHash.Window.FindName("txt_AccountURI")
@@ -193,12 +200,13 @@ If(Test-Path $VariableProxy.Module){
 			$synchash.TXT_SASToken = $SyncHash.Window.FindName("txt_SASToken")
 			$synchash.TXT_MappingFile = $SyncHash.Window.FindName("txt_MappingFile")
 			$synchash.BTN_Import_PST = $SyncHash.Window.FindName("BTN_Import_PST")
-		#endregion
+		#endregion Connecting Controls
 
-		# Import module
-		import-module $VariableProxy.Module -force -DisableNameChecking
+		# Configuring Images
+		$SyncHash.IMG_Close.Source = "$($VariableProxy.IconsDir)\appbar.Close.png"
+		$SyncHash.TitleBar.Text = "PST Upload and Import tool"
 
-		# Adding items to the ComboBox (Storage Locations)
+		# Adding items to drop down (Storage Location)
 		$synchash.DD_StorageLocation.items.Add("West Europe")
 		$synchash.DD_StorageLocation.items.Add("North Europe")
 		$synchash.DD_StorageLocation.items.Add("Central US")
@@ -217,96 +225,91 @@ If(Test-Path $VariableProxy.Module){
 		$synchash.DD_StorageLocation.items.Add("Central India")
 		$synchash.DD_StorageLocation.items.Add("South India")
 		$synchash.DD_StorageLocation.items.Add("West India")
+		
+		# Reporting script loaded
+		Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Tool loaded" -AppendContent  -logfile $VariableProxy.Runlog
 
-		# Loaded!
-		$Timestamp = (get-date -Format HH:mm:ss)
-		$Message = "$TimeStamp - [INFO]: User Interface Loaded"
-		$Synchash.OutputWindow.AppendText("$Message")
+		#region Event handlers
+			# Enable window to move when dragged
+			$Synchash.Window.FindName('Grid').Add_MouseLeftButtonDown({
+				$Synchash.Window.DragMove()
+			})
 
-		#region Event Handlers
+			# Close button
+			$SyncHash.BTN_Close.Add_Click({
+				$Synchash.Window.Close()
+			})
 
-			# Create Button
+			#region Create blob
 			$Synchash.BTN_Create.Add_Click({
 				# Capturing Values
 				$VariableProxy.TokenExpiry = Get-Date($Synchash.DatePicker_TokenExpireTime.Text) -Format 'yyyy-MM-dd'
 				$VariableProxy.StorageLocation = ($Synchash.DD_StorageLocation.Items.CurrentItem).ToLower()
 				$VariableProxy.StorageAccountName = ($synchash.TXT_StorageAccountName.Text).ToLower()
 				$VariableProxy.StorageAccountContainer = ($synchash.TXT_StorageAccountContainer.Text).ToLower()
-				
-				# Reporting
-				$Timestamp = (get-date -Format HH:mm:ss)
-				$Message = "$TimeStamp - [INFO]: Initiating creation of storage space`nStorage Region: $($VariableProxy.StorageLocation)`nToken Expires: $($VariableProxy.TokenExpiry)`nStorage URI: https://$($VariableProxy.StorageAccountName).blob.core.windows.net/$($VariableProxy.StorageAccountContainer)"
-				$Synchash.OutputWindow.AppendText("`n")
-				$Synchash.OutputWindow.AppendText("$Message")
 
-				# Runspace building (If we don't run the code in a seperate runspace the GUI will lock up. Nobody like a GUI that locks up!)
-                $newRunspace =[runspacefactory]::CreateRunspace()
-                $newRunspace.ApartmentState = "STA"
-                $newRunspace.ThreadOptions = "ReuseThread"
-                $newRunspace.Open()
-                $newRunspace.SessionStateProxy.SetVariable("synchash",$synchash)
-                $newRunspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
+				# Reporting
+				Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Initiating creation of storage space`nStorage Region: $($VariableProxy.StorageLocation)`nToken Expires: $($VariableProxy.TokenExpiry)`nStorage URI: https://$($VariableProxy.StorageAccountName).blob.core.windows.net/$($VariableProxy.StorageAccountContainer)" -AppendContent -logfile $VariableProxy.Runlog			
+
+				# Creating runspace to execute creation of storage blob
+				$Blob_Runspace =[runspacefactory]::CreateRunspace()
+                $Blob_Runspace.ApartmentState = "STA"
+                $Blob_Runspace.ThreadOptions = "ReuseThread"
+                $Blob_Runspace.Open()
+                $Blob_Runspace.SessionStateProxy.SetVariable("synchash",$synchash)
+                $Blob_Runspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
 
 				# Scriptblock
                 $powershell = [PowerShell]::Create().AddScript({
+					# Transcript for debugging
+					Start-Transcript -Path "$($VariableProxy.TranscriptsDir)\$(Get-Date -uformat %Y%m%d-%H%M)-AzureBlobCreation.log"
 
-					# Import module
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value " $Timestamp - [INFO]: Configuring Session" -AppendContent
-					import-module $VariableProxy.Module -force -DisableNameChecking
+					# Importing Module (Force to overwrite functions which may have already been imported, disabling name checking)
+					Import-Module $VariableProxy.module -Force -DisableNameChecking
 
-					# Header
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Starting Azure Storage Blob configuration Process" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Configuring Session" -AppendContent -logfile $VariableProxy.Runlog
 
 					# Importing Azure RM module
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Importing Azure RM module" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Importing Azure RM module" -AppendContent -logfile $VariableProxy.Runlog
 					Import-Module AzureRM
 
 					# Connecting to Azure
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Connecting to Azure Resource Manager" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Connecting to Azure Resource Manager" -AppendContent -logfile $VariableProxy.Runlog
 					$Connection = connect-azureRmAccount
-					
+
+					# Header
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Starting Azure Storage Blob configuration Process" -AppendContent -logfile $VariableProxy.Runlog
+
 					# Getting subscription name
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Retrieving Subscription Name" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Retrieving Subscription Name" -AppendContent -logfile $VariableProxy.Runlog
 					$SubscriptionName = $connection.Context.Subscription.Name
 
 					# Creating a new resourceGroup
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Creating resource group: PSTUploads" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Creating resource group: PSTUploads" -AppendContent -logfile $VariableProxy.Runlog
 					New-AzureRmResourceGroup -Name $VariableProxy.resourceGroup -Location $VariableProxy.StorageLocation  | Out-Null
 
 					# Creating Storage account
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Creating new storage account" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Creating new storage account" -AppendContent -logfile $VariableProxy.Runlog
 					New-AzureRMStorageAccount -ResourceGroupName $VariableProxy.resourceGroup -Name $VariableProxy.StorageAccountName -Location $VariableProxy.StorageLocation -SkuName "Standard_LRS" | Out-Null
 	
 					# Sleeping for 3 seconds to allow things to catch up
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Wait while Azure configures the storage account" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Wait while Azure configures the storage account" -AppendContent -logfile $VariableProxy.Runlog
 					Start-Sleep -Seconds 3
 
 					# Setting subscription
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Setting storage account context" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Setting storage account context" -AppendContent -logfile $VariableProxy.Runlog
 					Set-AzureRmCurrentStorageAccount -ResourceGroupName $VariableProxy.ResourceGroup -Name $VariableProxy.StorageAccountName
 
 					# Creating storage containter
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Creating new storage container" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Creating new storage container" -AppendContent -logfile $VariableProxy.Runlog
 					New-AzureStorageContainer -Name $VariableProxy.StorageAccountContainer -Permission Off | Out-null
 
 					# Creating Token For importing PST
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Creating Token for storage account container" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Creating Token for storage account container" -AppendContent -logfile $VariableProxy.Runlog
 					$token = New-AzureStorageContainerSASToken -Name $VariableProxy.StorageAccountContainer -Permission rwl -ExpiryTime $VariableProxy.TokenExpiry
 
 					# Getting storage key for AZCopy
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Retrieving Storage Account Key" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Retrieving Storage Account Key" -AppendContent -logfile $VariableProxy.Runlog
 					$StorageKey = Get-AzureRmStorageAccountKey -ResourceGroupName $VariableProxy.resourceGroup -AccountName $VariableProxy.StorageAccountName
 					
 					# Adding Data
@@ -325,229 +328,238 @@ If(Test-Path $VariableProxy.Module){
 					Update-Control -Synchash $Synchash -Control txt_MappingFile -Property 'Text' -Value $VariableProxy.MappingFile
 
 					# Reporting end
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Done" -AppendContent
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Azure storage blob creation completed!" -AppendContent -logfile $VariableProxy.Runlog
 				
+					Stop-Transcript
 				})
 
 				# Invoking Scriptblock
-				$powershell.Runspace = $newRunspace
+				$powershell.Runspace = $Blob_Runspace
                 $data = $powershell.BeginInvoke()
-								
+
 			})
-			
-			$synchash.BTN_Browse.Add_Click({
-				 # Location dialog for selecting folder
-				$FolderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-				$null = $FolderDialog.ShowDialog()
+			#endregion
 
-				# Setting the outputpath
-				$SyncHash.TXT_PSTPath.text = $FolderDialog.SelectedPath
+			#region Upload PST Tab
+				# Folder browser for PST path
+				$Synchash.BTN_Browse.Add_Click({
+					# Location dialog for selecting folder
+					$FolderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+					$null = $FolderDialog.ShowDialog()
 
-				# Reporting
-				$Timestamp = (get-date -Format HH:mm:ss)
-				$Message = "$TimeStamp - [INFO]: PST Path changed"
-				$Synchash.OutputWindow.AppendText("`n")
-				$Synchash.OutputWindow.AppendText("$Message")
-			})
-	
-			# Import Settings File
-			$synchash.BTN_Import.Add_Click({
-				# Retrieving data
-				$VariableProxy = Import-Clixml $VariableProxy.settingsFile
-
-				# Adding to GUI
-				## Configure Blob Tab
-				$Synchash.TXT_StorageAccountName.Text = $VariableProxy.StorageAccountName
-				$Synchash.TXT_StorageAccountContainer.Text = $VariableProxy.StorageAccountContainer
-				$Synchash.DatePicker_TokenExpireTime.Text = $VariableProxy.TokenExpiry
-				$Synchash.DD_StorageLocation.Text = $VariableProxy.StorageLocation
-
-				## Upload PST Tab
-				$Synchash.txt_AccountURI.Text = $VariableProxy.AccountURI
-				$Synchash.txt_StorageKey.Text = $VariableProxy.StorageKey
-
-				## Import PST Tab
-				$Synchash.txt_SASToken.Text = $VariableProxy.SASToken
-				$Synchash.txt_MappingFile.Text = $VariableProxy.MappingFile
-				
-				# Reporting end
-				$Timestamp = (get-date -Format HH:mm:ss)
-				update-control -synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Import Completed" -AppendContent
-			})
-			
-			# Export Settings File
-			$synchash.BTN_Save.Add_Click({
-				# Popup warning
-				$Acceptance = new-popup -Title "Attention! Sensitive data warning!" -Message "Saving these settings potentially exposes sensitive data.`n It is your responsibility to ensure this file is secured appropriately!" -Buttons "OKCancel" -Icon "Exclamation" -DefaultButton "Second"
-
-				If($Acceptance -eq "1"){
-					# Exporting Settings
-					$VariableProxy | Export-Clixml $VariableProxy.SettingsFile -Force
+					# Setting the outputpath
+					$SyncHash.TXT_PSTPath.text = $FolderDialog.SelectedPath
 
 					# Reporting
-					$Timestamp = (get-date -Format HH:mm:ss)
-					$Message = "$TimeStamp - [INFO]: Settings saved."
-					$Synchash.OutputWindow.AppendText("`n")
-					$Synchash.OutputWindow.AppendText("$Message")
-				}Else{
-					# Reporting
-					$Timestamp = (get-date -Format HH:mm:ss)
-					$Message = "$TimeStamp - [INFO]: Cancelled saving the settings."
-					$Synchash.OutputWindow.AppendText("`n")
-					$Synchash.OutputWindow.AppendText("$Message")
-				}
-			})
-
-			# Window closing
-			$synchash.Window.add_Closing({
-				# Cleaning Variables
-				Clear-Variable Synchash
-				Clear-Variable VariableProxy
-			})
-
-			# Upload PST files
-			$synchash.BTN_Upload.Add_Click({
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Path containing PST files: $($SyncHash.TXT_PSTPath.text)" -AppendContent -logfile $VariableProxy.Runlog
+				})
+			
+				# Save settings
+				$Synchash.BTN_Save.Add_Click({
 				
-				# Capturing Values
-				$VariableProxy.TokenExpiry = Get-Date($Synchash.DatePicker_TokenExpireTime.Text) -Format 'yyyy-MM-dd'
-				$VariableProxy.StorageLocation = ($Synchash.DD_StorageLocation.Items.CurrentItem).ToLower()
-				$VariableProxy.StorageAccountName = ($synchash.TXT_StorageAccountName.Text).ToLower()
-				$VariableProxy.StorageAccountContainer = ($synchash.TXT_StorageAccountContainer.Text).ToLower()
-				$VariableProxy.AccountURI = $Synchash.txt_AccountURI.Text
-				$VariableProxy.StorageKey = $Synchash.txt_StorageKey.Text
-				$VariableProxy.PSTPath = $SyncHash.TXT_PSTPath.text
-				$VariableProxy.EmailAddress = $SyncHash.TXT_Email.Text
-
-				# Runspace building (If we don't run the code in a seperate runspace the GUI will lock up. Nobody like a GUI that locks up!)
-                $newRunspace =[runspacefactory]::CreateRunspace()
-                $newRunspace.ApartmentState = "STA"
-                $newRunspace.ThreadOptions = "ReuseThread"
-                $newRunspace.Open()
-                $newRunspace.SessionStateProxy.SetVariable("synchash",$synchash)
-                $newRunspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
-
-				# Scriptblock
-                $powershell = [PowerShell]::Create().AddScript({
-					# Variables
-					$Programfiles = [Environment]::GetEnvironmentVariable("ProgramFiles")
-
-					# Import module
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Configuring PST Upload session" -AppendContent
-					import-module $VariableProxy.Module -force -DisableNameChecking
-
-					# AZCopy Settings
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Setting AZCopy options (Recurse, Verbose output logging, write only tokens), PST files only" -AppendContent
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: AZ Copy log is located in %LocalAppData%\Microsoft\Azure\AzCopy" -AppendContent
-					$AZCOptions = " /S /V /Y /Pattern:*.pst"
-					
-					# Header
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Starting PST upload process" -AppendContent
-
-					# Go through all subfolders 
-					$PSTFiles = Get-ChildItem -Path $VariableProxy.PSTPath -Filter "*.PST" -Recurse
-
-					Foreach($PST in $PSTFiles){
-						$Timestamp = (get-date -Format HH:mm:ss)
-						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Processing $($PST.Name)" -AppendContent
-
-						$CSV = [PSCustomObject]
-						$CSV = "" | Select email,PSTName, Status
-
-						$CSV.Email = $VariableProxy.EmailAddress
-						$CSV.PSTName = $PST.Name
-						$CSV.Status = "Not Started"
-
-						$CSV | Export-Csv -Path $VariableProxy.MappingFile -NoTypeInformation -Append
+					# Popup warning
+					$MsgParams = @{
+						TitleBackground = "Red"
+						TitleTextForeground = "Yellow"
+						TitleFontWeight = "UltraBold"
+						TitleFontSize = 28
+						ContentBackground = 'Red'
+						ContentFontSize = 18
+						ContentTextForeground = 'White'
+						ButtonTextForeground = 'White'
 					}
 
-					# Starting AZCopy Process
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: Starting PST upload (AZCopy)" -AppendContent
-					Start-Process -FilePath "$($VariableProxy.ProgramFiles)\Microsoft SDKs\Azure\AZCopy\AZCopy.exe" -ArgumentList "/Source:`"$($VariableProxy.PSTPath)`" /Dest:$($VariableProxy.AccountURI) /DestKey:$($VariableProxy.StorageKey) $AZCOptions" -Wait
+					Invoke-WPFMessageBox @MsgParams -Title "Attention! Sensitive data warning!" -Content "Saving these settings potentially exposes sensitive data.`n It is your responsibility to ensure this file is secured appropriately!" -ButtonType 'OK-Cancel' -Window $synchash.Window
+				
+					If($VariableProxy.Acceptance -like "OK"){
+						# Exporting Settings
+						$VariableProxy | Export-Clixml $VariableProxy.SettingsFile -Force
 
-					# Report completed
-					$Timestamp = (get-date -Format HH:mm:ss)
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "$Timestamp - [INFO]: PST upload completed (AZCopy)" -AppendContent
+						# Reporting
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Settings saved" -AppendContent -logfile $VariableProxy.Runlog
+					}Else{
+						# Reporting
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Cancelled saving of settings" -AppendContent -logfile $VariableProxy.Runlog
+					}
 				})
 
-				# Invoking Scriptblock
-				$powershell.Runspace = $newRunspace
-                $data = $powershell.BeginInvoke()
-			})
+				# Import settings
+				$Synchash.BTN_Import.Add_Click({
+					# Retrieving data
+					$VariableProxy = Import-Clixml $VariableProxy.settingsFile
 
-			$synchash.BTN_Save.Add_Click({
-				$VariableProxy.SASToken = $synchash.TXT_SASToken.Text
-				$VariableProxy.MappingFile = $synchash.txt_MappingFile.Text
+					# Adding to GUI
+					## Configure Blob Tab
+					$Synchash.TXT_StorageAccountName.Text = $VariableProxy.StorageAccountName
+					$Synchash.TXT_StorageAccountContainer.Text = $VariableProxy.StorageAccountContainer
+					$Synchash.DatePicker_TokenExpireTime.Text = $VariableProxy.TokenExpiry
+					$Synchash.DD_StorageLocation.Text = $VariableProxy.StorageLocation
 
-				Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Starting PST Import process" -AppendContent
+					## Upload PST Tab
+					$Synchash.txt_AccountURI.Text = $VariableProxy.AccountURI
+					$Synchash.txt_StorageKey.Text = $VariableProxy.StorageKey
 
-				# Runspace building (If we don't run the code in a seperate runspace the GUI will lock up. Nobody like a GUI that locks up!)
-                $PSTImportRunSpace =[runspacefactory]::CreateRunspace()
-                $PSTImportRunSpace.ApartmentState = "STA"
-                $PSTImportRunSpace.ThreadOptions = "ReuseThread"
-                $PSTImportRunSpace.Open()
-                $PSTImportRunSpace.SessionStateProxy.SetVariable("synchash",$synchash)
-                $PSTImportRunSpace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
+					## Import PST Tab
+					$Synchash.txt_SASToken.Text = $VariableProxy.SASToken
+					$Synchash.txt_MappingFile.Text = $VariableProxy.MappingFile
+				
+					# Reporting end
+					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Import Completed" -AppendContent -logfile $VariableProxy.Runlog
+				})
 
-				$powershell = [PowerShell]::Create().AddScript({
+				# Upload PST Files
+				$Synchash.BTN_Upload.Add_Click({
+					
+					# Capturing Values
+					$VariableProxy.TokenExpiry = Get-Date($Synchash.DatePicker_TokenExpireTime.Text) -Format 'yyyy-MM-dd'
+					$VariableProxy.StorageLocation = ($Synchash.DD_StorageLocation.Items.CurrentItem).ToLower()
+					$VariableProxy.StorageAccountName = ($synchash.TXT_StorageAccountName.Text).ToLower()
+					$VariableProxy.StorageAccountContainer = ($synchash.TXT_StorageAccountContainer.Text).ToLower()
+					$VariableProxy.AccountURI = $Synchash.txt_AccountURI.Text
+					$VariableProxy.StorageKey = $Synchash.txt_StorageKey.Text
+					$VariableProxy.PSTPath = $SyncHash.TXT_PSTPath.text
+					$VariableProxy.EmailAddress = $SyncHash.TXT_Email.Text
 
-					# Importing Mapping file
-					$CSV = Import-Csv $VariableProxy.MappingFile
+					# Runspace building (If we don't run the code in a seperate runspace the GUI will lock up. Nobody like a GUI that locks up!)
+					$UploadPST_Runspace =[runspacefactory]::CreateRunspace()
+					$UploadPST_Runspace.ApartmentState = "STA"
+					$UploadPST_Runspace.ThreadOptions = "ReuseThread"
+					$UploadPST_Runspace.Open()
+					$UploadPST_Runspace.SessionStateProxy.SetVariable("synchash",$synchash)
+					$UploadPST_Runspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
 
-					# Reporting
-					Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Connecting to Exchange Online" -AppendContent
+					# Scriptblock
+					$powershell = [PowerShell]::Create().AddScript({
+						# Transcript for debugging
+						Start-Transcript -Path "$($VariableProxy.TranscriptsDir)\$(Get-Date -uformat %Y%m%d-%H%M)-PSTUpload.log"
 
-					# Connecting to Exchange Online
-					$UserCredential = Get-Credential
-					$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
-					Import-PSSession $Session -DisableNameChecking
+						# Importing Module (Force to overwrite functions which may have already been imported, disabling name checking)
+						Import-Module $VariableProxy.module -Force -DisableNameChecking
 
-					# iterate through the mapping file and start the import
-					Foreach($i in $CSV){
-						
+						# Variables
+						$Programfiles = [Environment]::GetEnvironmentVariable("ProgramFiles")
+				
 						# Reporting
-						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Processing $($i.PSTName)" -AppendContent
-						
-						# Some checks
-						If($i.status -eq "Started"){
-							Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: $($i.PSTName) for $($i.email) has previously been processed." -AppendContent
-						}Else{
-							# Reporting
-							Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Starting import creation of $($i.PSTName)." -AppendContent
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Starting Upload Process" -AppendContent -logfile $VariableProxy.Runlog
 
-							# Import request creation
-							Try{
-								New-MailboxImportRequest -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $VariableProxy.AccountUri/$i.PSTname -AzureSharedAccessSignatureToken $VariableProxy.SASToken
-								($csv |where {$_.PSTName -eq $i.PSTName}).Status = "Started"
-							}Catch{
-								# Reporting
-								Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[ERROR]: Something went wrong creating the import request for $($i.PSTName)." -AppendContent
-								($csv |where {$_.PSTName -eq $i.PSTName}).Status = "ERROR"
+						# AZ Copy options
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Setting AZCopy options (Recurse, Verbose output logging, write only tokens), PST files only" -AppendContent -logfile $VariableProxy.Runlog
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: AZ Copy log is located in %LocalAppData%\Microsoft\Azure\AzCopy" -AppendContent -logfile $VariableProxy.Runlog
+						$AZCOptions = " /S /V /Y /Pattern:*.pst"
+
+						# Go through all subfolders 
+						$PSTFiles = Get-ChildItem -Path $VariableProxy.PSTPath -Filter "*.PST" -Recurse
+
+						Foreach($PST in $PSTFiles){
+							$Timestamp = (get-date -Format HH:mm:ss)
+							Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Processing $($PST.Name)" -AppendContent -logfile $VariableProxy.Runlog
+
+							$CSV = [PSCustomObject]
+							$CSV = "" | Select email,PSTName, Status
+
+							$CSV.Email = $VariableProxy.EmailAddress
+							$CSV.PSTName = $PST.Name
+							$CSV.Status = "Not Started"
+
+							$CSV | Export-Csv -Path $VariableProxy.MappingFile -NoTypeInformation -Append
+						}
+
+						# Starting AZCopy Process
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Starting PST upload (AZCopy)" -AppendContent -logfile $VariableProxy.Runlog
+						Start-Process -FilePath "$($VariableProxy.ProgramFiles)\Microsoft SDKs\Azure\AZCopy\AZCopy.exe" -ArgumentList "/Source:`"$($VariableProxy.PSTPath)`" /Dest:$($VariableProxy.AccountURI) /DestKey:$($VariableProxy.StorageKey) $AZCOptions" -Wait
+
+						# Report completed
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: PST upload completed (AZCopy)" -AppendContent -logfile $VariableProxy.Runlog
+
+						Stop-Transcript
+					})
+
+					# Invoking Scriptblock
+					$powershell.Runspace = $UploadPST_Runspace
+					$data = $powershell.BeginInvoke()
+				})
+			#endregion
+
+			#region Import PST
+				# Start PST Import
+				$Synchash.BTN_Import_PST.Add_Click({
+
+					# Runspace building (If we don't run the code in a seperate runspace the GUI will lock up. Nobody like a GUI that locks up!)
+					$ImportPST_Runspace =[runspacefactory]::CreateRunspace()
+					$ImportPST_Runspace.ApartmentState = "STA"
+					$ImportPST_Runspace.ThreadOptions = "ReuseThread"
+					$ImportPST_Runspace.Open()
+					$ImportPST_Runspace.SessionStateProxy.SetVariable("synchash",$synchash)
+					$ImportPST_Runspace.SessionStateProxy.SetVariable("VariableProxy",$VariableProxy)
+
+					# Scriptblock
+					$powershell = [PowerShell]::Create().AddScript({
+
+						# Transcript for debugging
+					    Start-Transcript -Path "$($VariableProxy.TranscriptsDir)\$(Get-Date -uformat %Y%m%d-%H%M)-PSTImport.log"
+
+						# Importing Module (Force to overwrite functions which may have already been imported, disabling name checking)
+						Import-Module $VariableProxy.module -Force -DisableNameChecking
+
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Starting PST import process" -AppendContent -logfile $VariableProxy.Runlog
+
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Importing Mapping file" -AppendContent -logfile $VariableProxy.Runlog
+						$CSV = Import-Csv $VariableProxy.MappingFile
+
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Connecting to Exchange Online" -AppendContent -logfile $VariableProxy.Runlog
+						$UserCredential = Get-Credential
+						$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
+						Import-PSSession $Session -DisableNameChecking
+
+						# Iterating through the CSV File
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Iterating through Mapping file and creating PST Import Requests" -AppendContent -logfile $VariableProxy.Runlog
+						Foreach($i in $CSV){
+							# If this has been started before, skip
+							If($i.status -eq "Started"){
+								Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[ALERT]: PST import previously started: $($I.PSTName) for $($i.email)" -AppendContent -logfile $VariableProxy.Runlog
+							}Else{
+								# Processing users
+								Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Processing: $($i.email)" -AppendContent -logfile $VariableProxy.Runlog
+
+								# Import request
+								Try{
+									New-MailboxImportRequest -TargetRootFolder "Imported PST" -Mailbox $($i.email) -AzureBlobStorageAccountUri $VariableProxy.AccountUri/$i.PSTname -AzureSharedAccessSignatureToken $VariableProxy.SASToken
+									($csv |where {$_.PSTName -eq $i.PSTName}).Status = "Started"
+									Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Created PST request for $($i.email), $($i.PSTName)" -AppendContent -logfile $VariableProxy.Runlog
+								}Catch{
+									Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[ALERT]: Unable to create PST import: $($i.email), $($i.PSTName)" -AppendContent -logfile $VariableProxy.Runlog
+								}
 							}
 						}
-					}
+
+						# Exporting updated Mapping File
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Exporting updated Mapping file" -AppendContent -logfile $VariableProxy.Runlog
+						$CSV | Export-Csv $VariableProxy.MappingFile -NoTypeInformation -Force
+
+						# Removing Exchange online session
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: Closing connection to Exchange Online" -AppendContent -logfile $VariableProxy.Runlog
+						Remove-PSSession $Session
+
+						# Reporting Done
+						Update-Control -Synchash $Synchash -Control "OutputWindow" -value "[INFO]: PST Import process completed" -AppendContent -logfile $VariableProxy.Runlog
+
+						Stop-Transcript
+					})
+
+					# Invoking Scriptblock
+					$powershell.Runspace = $ImportPST_Runspace
+					$data = $powershell.BeginInvoke()
+
 				})
-
-				# Invoking Scriptblock
-				$powershell.Runspace = $newRunspace
-                $data = $powershell.BeginInvoke()
-								
-
-			})
+			#endregion
 		#endregion
 
 		# Show GUI
 		$SyncHash.Window.ShowDialog() | Out-Null
 		$VariableProxy.Error = $Error
-	
 	})
 
-#endregion
-
-
-$psCmd.Runspace = $newRunspace
-$data = $psCmd.BeginInvoke()
+	# Invoking GUI
+	$psCmd.Runspace = $GUI_Runspace
+	$data = $psCmd.BeginInvoke()
+#endregion Main
